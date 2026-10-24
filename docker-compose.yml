@@ -1,0 +1,17 @@
+services:
+  bot:
+    # Pour utiliser l'image publiée par GitHub Actions plutôt que de la construire :
+    # image: ghcr.io/andy-smn/bot-iltak:latest
+    build: .
+    container_name: iltak-bot
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    # La console du bot (set-mj, remove-mj...) lit l'entrée standard : `docker attach iltak-bot`.
+    stdin_open: true
+    tty: true
+    volumes:
+      - iltak-data:/data
+
+volumes:
+  iltak-data:

@@ -176,6 +176,44 @@ Le bot expose 9 commandes slash fixes (`/set-perso`, `/corps`, `/coeur`, `/menin
 - Il n'y a pas encore de commande de renommage ou de suppression de PNJ, ni de suppression de compétence.
 - Les bonus sont limités à ±1000 (jets lisibles et sûrs).
 
+## 15. Hébergement avec Docker (VPS, Railway, Fly.io…)
+
+GitHub stocke le code mais n'exécute pas le bot en continu : il faut un hébergeur qui lance le conteneur 24h/24. Prérequis de l'hébergeur : **une seule instance** et un **volume persistant** monté sur `/data` (là où sont écrits `mj.json` et `personnages.json`).
+
+Fichiers fournis :
+
+- `Dockerfile` : image Node 22 Alpine, exécutée avec l'utilisateur `node`, données dans `/data` (variable `DATA_DIR`) ;
+- `docker-compose.yml` : lancement sur un VPS avec redémarrage automatique et volume nommé `iltak-data` ;
+- `.github/workflows/ci.yml` : tests (Node 22 et 24) et construction de l'image Docker à chaque push et pull request ;
+- `.github/workflows/docker-publish.yml` : publie l'image sur GitHub Container Registry (`ghcr.io/<utilisateur>/<dépôt>`) à chaque push sur `main` (tags `latest` et `sha`) et à chaque tag `vX.Y.Z`.
+
+### Sur un VPS (Linux avec Docker)
+
+```bash
+git clone https://github.com/andy-smn/bot-iltak.git && cd bot-iltak
+cp .env.example .env          # puis renseigner DISCORD_TOKEN et CLIENT_ID
+docker compose up -d --build
+docker compose logs -f bot    # vérifier la connexion
+```
+
+Mise à jour : `git pull && docker compose up -d --build`. Les données du volume sont conservées.
+
+Pour utiliser l'image publiée par GitHub Actions plutôt que de la construire, remplacez `build: .` par la ligne `image: ghcr.io/andy-smn/bot-iltak:latest` (en commentaire dans le fichier), puis `docker compose pull && docker compose up -d`. Si le dépôt (donc le paquet) est privé, connectez-vous d'abord : `docker login ghcr.io` avec un jeton d'accès personnel ayant la portée `read:packages`.
+
+### Console du bot (`set-mj`) dans Docker
+
+La console lit l'entrée standard du conteneur : `docker attach iltak-bot`, puis tapez `set-mj <identifiant>`. Pour quitter sans arrêter le bot : `Ctrl+P` puis `Ctrl+Q` (surtout pas `Ctrl+C`).
+
+### Sauvegarde des données
+
+```bash
+docker run --rm -v iltak-data:/data -v "$PWD":/backup alpine tar czf /backup/iltak-data.tgz -C /data .
+```
+
+### Secrets
+
+Le token n'est jamais dans l'image ni dans Git : il vient du fichier `.env` (VPS) ou des variables d'environnement / secrets de l'hébergeur (`DISCORD_TOKEN`, `CLIENT_ID`). Ne lancez jamais deux instances du même bot (données corrompues et réponses en double).
+
 ## Architecture
 
 ```text

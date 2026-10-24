@@ -1,0 +1,9 @@
+node_modules
+.git
+.github
+.env
+token.txt
+data
+tests
+*.log
+README.md
