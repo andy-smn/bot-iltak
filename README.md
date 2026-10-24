@@ -198,7 +198,19 @@ docker compose logs -f bot    # vérifier la connexion
 
 Mise à jour : `git pull && docker compose up -d --build`. Les données du volume sont conservées.
 
-Pour utiliser l'image publiée par GitHub Actions plutôt que de la construire, remplacez `build: .` par la ligne `image: ghcr.io/andy-smn/bot-iltak:latest` (en commentaire dans le fichier), puis `docker compose pull && docker compose up -d`. Si le dépôt (donc le paquet) est privé, connectez-vous d'abord : `docker login ghcr.io` avec un jeton d'accès personnel ayant la portée `read:packages`.
+Pour utiliser l'image publiée par GitHub Actions plutôt que de la construire, remplacez `build: .` par la ligne `image: ghcr.io/andy-smn/bot-iltak:latest` (en commentaire dans le fichier), puis `docker compose pull && docker compose up -d`. Cette image est construite pour `amd64` uniquement : sur un serveur ARM (par exemple Oracle Ampere), gardez `build: .`. Si le dépôt (donc le paquet) est privé, connectez-vous d'abord : `docker login ghcr.io` avec un jeton d'accès personnel ayant la portée `read:packages`.
+
+### Reprendre des données existantes
+
+Après un premier `docker compose up -d` (qui crée le volume), copiez vos fichiers dans le volume :
+
+```bash
+docker compose stop
+docker run --rm -v iltak-data:/data -v "$HOME":/src alpine sh -c "cp /src/mj.json /src/personnages.json /data/ && chown 1000:1000 /data/*.json"
+docker compose up -d
+```
+
+(`mj.json` et `personnages.json` ayant été préalablement envoyés dans votre dossier personnel, par exemple avec `scp`.)
 
 ### Console du bot (`set-mj`) dans Docker
 

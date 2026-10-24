@@ -15,3 +15,5 @@ services:
 
 volumes:
   iltak-data:
+    # Nom fixe (sinon Docker le préfixe avec le nom du dossier du projet).
+    name: iltak-data
