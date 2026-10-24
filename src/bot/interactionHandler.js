@@ -1,5 +1,6 @@
 'use strict';
 
+const administration = require('../commands/administration');
 const caracteristiques = require('../commands/caracteristiques');
 const competences = require('../commands/competences');
 const consultation = require('../commands/consultation');
@@ -12,9 +13,13 @@ const MAX_AUTOCOMPLETE_CHOICES = 25;
 
 /** Corps JSON des commandes slash du bot, à enregistrer sur chaque serveur. */
 function getCommands() {
-  return [setPerso.data, ...caracteristiques.builders, ...competences.builders, ...consultation.builders].map((builder) =>
-    builder.toJSON(),
-  );
+  return [
+    setPerso.data,
+    ...caracteristiques.builders,
+    ...competences.builders,
+    ...consultation.builders,
+    ...administration.builders,
+  ].map((builder) => builder.toJSON());
 }
 
 /**
@@ -64,6 +69,7 @@ function createInteractionHandler(ctx) {
     if (caracteristiques.names.includes(name)) return caracteristiques.execute(interaction, ctx);
     if (competences.names.includes(name)) return competences.execute(interaction, ctx);
     if (consultation.names.includes(name)) return consultation.execute(interaction, ctx);
+    if (administration.names.includes(name)) return administration.execute(interaction, ctx);
     throw new IltakError(ErrorCodes.INVALID_INPUT, `Commande inconnue : /${name}.`);
   }
 

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { MessageFlags } = require('discord.js');
 const { createInteractionHandler } = require('../src/bot/interactionHandler');
 const { DiceService } = require('../src/services/diceService');
-const { GUILD, MJ_1, MJ_2, PLAYER_1, PLAYER_2, makeTempDir, makeServices } = require('./helpers');
+const { GUILD, MJ_1, MJ_2, OWNER, PLAYER_1, PLAYER_2, makeTempDir, makeServices } = require('./helpers');
 
 function fakeInteraction({ commandName, userId, guildId = GUILD, options = {}, users = {} }) {
   const calls = { reply: [], editReply: [], deferReply: [], respond: [] };
@@ -87,6 +87,56 @@ test('/set-perso puis /corps, /bagarre et /savoir via le routeur', async () => {
   const wrongCategory = fakeInteraction({ commandName: 'savoir', userId: PLAYER_1, options: { competence: ' CAC ' } });
   await handler(wrongCategory);
   assert.match(wrongCategory.calls.reply[0].content, /compétence de Bagarre : utilisez \/bagarre/);
+});
+
+test('/set-mj, /remove-mj et /liste-mj : réservés au propriétaire (OWNER_ID)', async () => {
+  const { handler, mjService, permissionService } = await setup();
+  const NEW_MJ = '400000000000000001';
+  const run = async (commandName, userId, utilisateur) => {
+    const interaction = fakeInteraction({
+      commandName,
+      userId,
+      users: utilisateur ? { utilisateur } : {},
+    });
+    await handler(interaction);
+    assert.equal(interaction.calls.reply[0].flags, MessageFlags.Ephemeral);
+    return interaction.calls.reply[0].content;
+  };
+
+  // Ni un MJ, ni un joueur ne peuvent gérer les MJ.
+  for (const userId of [MJ_1, PLAYER_1]) {
+    assert.match(await run('set-mj', userId, { id: PLAYER_2, bot: false }), /réservée au propriétaire/);
+    assert.match(await run('remove-mj', userId, { id: MJ_2, bot: false }), /réservée au propriétaire/);
+    assert.match(await run('liste-mj', userId), /réservée au propriétaire/);
+  }
+  assert.equal(mjService.isMj(PLAYER_2), false);
+  assert.equal(mjService.isMj(MJ_2), true);
+
+  // Le propriétaire peut tout faire.
+  assert.equal(await run('set-mj', OWNER, { id: NEW_MJ, bot: false }), `✅ <@${NEW_MJ}> est désormais MJ.`);
+  assert.equal(mjService.isMj(NEW_MJ), true);
+  assert.match(await run('set-mj', OWNER, { id: NEW_MJ, bot: false }), /déjà MJ/);
+  assert.match(await run('liste-mj', OWNER), new RegExp(`<@${OWNER}>[\\s\\S]*<@${NEW_MJ}>`));
+  assert.match(await run('remove-mj', OWNER, { id: NEW_MJ, bot: false }), /n'est plus MJ/);
+  assert.equal(mjService.isMj(NEW_MJ), false);
+  assert.match(await run('remove-mj', OWNER, { id: NEW_MJ, bot: false }), /n'est pas MJ/);
+
+  // Cas limites : un bot, et le propriétaire lui-même.
+  assert.match(await run('set-mj', OWNER, { id: NEW_MJ, bot: true }), /Un bot ne peut pas être MJ/);
+  assert.match(await run('remove-mj', OWNER, { id: OWNER, bot: false }), /toujours MJ/);
+  permissionService.assertOwner(OWNER);
+});
+
+test('/set-perso : le propriétaire est MJ sans être enregistré dans mj.json', async () => {
+  const { handler, personnageService } = await setup();
+  const interaction = fakeInteraction({
+    commandName: 'set-perso',
+    userId: OWNER,
+    options: { nom: 'Pnj Du Proprio', carac: '1,1,1' },
+  });
+  await handler(interaction);
+  assert.match(interaction.calls.editReply[0].content, /PNJ \*\*Pnj Du Proprio\*\* créé/);
+  assert.equal(personnageService.findPnjByName(GUILD, 'pnj du proprio').createdBy, OWNER);
 });
 
 test('/set-perso refusé aux non-MJ, sans aucune modification', async () => {

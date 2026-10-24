@@ -25,7 +25,7 @@ async function main() {
   const rest = new REST({ version: '10' }).setToken(config.token);
   const commandRegistry = new CommandRegistry({ rest, clientId: config.clientId, commands: getCommands() });
 
-  const mjService = new MjService(mjStore);
+  const mjService = new MjService(mjStore, { ownerId: config.ownerId });
   const personnageService = new PersonnageService({ store: personnageStore });
   const permissionService = new PermissionService({ mjService, personnageService });
   const diceService = new DiceService();
@@ -73,6 +73,9 @@ async function main() {
 
   startConsole({ mjService, onExit: shutdown });
   console.log('[ILTAK] Console prête : tapez « help » pour la liste des commandes.');
+  if (!config.ownerId) {
+    console.log('[ILTAK] OWNER_ID non défini : /set-mj, /remove-mj et /liste-mj sont inutilisables (utilisez la console).');
+  }
 
   await client.login(config.token);
 }

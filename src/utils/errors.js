@@ -14,6 +14,7 @@ class IltakError extends Error {
 
 const ErrorCodes = Object.freeze({
   NOT_MJ: 'NOT_MJ',
+  NOT_OWNER: 'NOT_OWNER',
   NO_CHARACTER: 'NO_CHARACTER',
   CHARACTER_NOT_FOUND: 'CHARACTER_NOT_FOUND',
   FOREIGN_PNJ: 'FOREIGN_PNJ',

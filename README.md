@@ -26,9 +26,13 @@ Copiez `.env.example` vers `.env` puis renseignez :
 ```env
 DISCORD_TOKEN=le_token_du_bot
 CLIENT_ID=l_application_id
+# Votre identifiant Discord : propriétaire du bot, toujours MJ, seul à gérer les MJ
+OWNER_ID=votre_identifiant_discord
 # Optionnel : dossier des fichiers JSON (par défaut ./data)
 # DATA_DIR=
 ```
+
+`OWNER_ID` : activez le mode développeur (Discord > Paramètres > Avancés), puis clic droit sur votre profil > *Copier l'identifiant utilisateur*.
 
 Le fichier `.env` est exclu de Git : ne partagez jamais le token.
 
@@ -51,7 +55,7 @@ Au démarrage, le bot :
 
 1. charge `data/mj.json` et `data/personnages.json` (ils sont créés s'ils n'existent pas) ;
 2. se connecte à Discord ;
-3. enregistre, pour chaque serveur, les 9 commandes slash du bot.
+3. enregistre, pour chaque serveur, les 12 commandes slash du bot.
 
 Il refuse de démarrer, sans rien modifier, si un fichier JSON existant est corrompu.
 
@@ -61,9 +65,23 @@ Tests automatisés (sans connexion à Discord) :
 npm test
 ```
 
-## 7. Gérer les MJ depuis la console
+## 7. Gérer les MJ
 
-Le statut MJ ne s'attribue **que depuis la console** du bot (il n'existe aucune commande slash `/set-mj`). La console n'ayant pas de système de mentions, utilisez l'identifiant numérique de l'utilisateur (Discord > Paramètres > Avancés > Mode développeur, puis clic droit sur l'utilisateur > *Copier l'identifiant*) ou une mention copiée.
+Seul le **propriétaire du bot** peut attribuer ou retirer le statut MJ. Il est défini par `OWNER_ID` dans le `.env` (voir section 4) : il est toujours MJ, sans avoir besoin d'être enregistré, et ses droits ne peuvent pas être retirés. Personne d'autre ne peut gérer les MJ ; les contrôles sont faits côté bot, sur l'identifiant Discord (jamais sur le pseudo).
+
+### Depuis Discord (propriétaire uniquement)
+
+| Commande | Description |
+|----------|-------------|
+| `/set-mj utilisateur:@quelqu'un` | Donne le statut MJ. |
+| `/remove-mj utilisateur:@quelqu'un` | Retire le statut MJ (les personnages sont conservés). |
+| `/liste-mj` | Liste les MJ. |
+
+Ces commandes sont visibles de tous mais refusées à toute personne autre que le propriétaire. Les réponses sont éphémères. Elles nécessitent que `OWNER_ID` soit renseigné.
+
+### Depuis la console du bot
+
+La console reste disponible quand le bot tourne dans un terminal (utile sans `OWNER_ID`). Elle n'ayant pas de système de mentions, utilisez l'identifiant numérique de l'utilisateur ou une mention copiée.
 
 ```text
 set-mj 123456789012345678
@@ -166,7 +184,7 @@ Garanties : validation avant chaque sauvegarde, écriture atomique (fichier `.tm
 
 ## 13. Synchronisation des commandes Discord
 
-Le bot expose 9 commandes slash fixes (`/set-perso`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
+Le bot expose 12 commandes slash fixes (`/set-perso`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`, `/set-mj`, `/remove-mj`, `/liste-mj`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
 
 ## 14. Limites techniques connues
 
@@ -226,7 +244,7 @@ docker compose up -d
 
 ### Console du bot (`set-mj`) dans Docker
 
-La console lit l'entrée standard du conteneur : `docker attach iltak-bot`, puis tapez `set-mj <identifiant>`. Pour quitter sans arrêter le bot : `Ctrl+P` puis `Ctrl+Q` (surtout pas `Ctrl+C`).
+Le plus simple est d'utiliser `OWNER_ID` et les commandes `/set-mj`, `/remove-mj`, `/liste-mj` (voir section 7). La console reste utilisable : elle lit l'entrée standard du conteneur, donc `docker attach iltak-bot`, puis `set-mj <identifiant>`. Pour quitter sans arrêter le bot : `Ctrl+P` puis `Ctrl+Q` (surtout pas `Ctrl+C`).
 
 ### Sauvegarde des données
 
@@ -237,6 +255,32 @@ docker run --rm -v iltak-data:/data -v "$PWD":/backup alpine tar czf /backup/ilt
 ### Secrets
 
 Le token n'est jamais dans l'image ni dans Git : il vient du fichier `.env` (VPS) ou des variables d'environnement / secrets de l'hébergeur (`DISCORD_TOKEN`, `CLIENT_ID`). Ne lancez jamais deux instances du même bot (données corrompues et réponses en double).
+
+## 17. Hébergement sur Railway
+
+[Railway](https://railway.com) déploie le bot directement depuis le dépôt GitHub (en utilisant le `Dockerfile`). Le plan gratuit donne 30 jours d'essai avec 5 $ de crédit, puis 1 $ de crédit par mois, avec 1 vCPU / 0,5 Go de RAM et un volume de 0,5 Go ; la facturation se fait à la seconde, selon la consommation réelle. Un bot comme celui-ci consomme très peu, mais vérifiez l'onglet *Usage* après quelques jours : si le crédit est dépassé, le plan Hobby coûte 5 $ par mois. Les tarifs peuvent évoluer : consultez [railway.com/pricing](https://railway.com/pricing).
+
+1. Connectez-vous sur Railway avec votre compte GitHub, puis **New Project > Deploy from GitHub repo** et choisissez `bot-iltak` (autorisez l'accès au dépôt si on vous le demande).
+2. Dans le service créé, onglet **Variables**, ajoutez :
+
+   | Variable | Valeur |
+   |----------|--------|
+   | `DISCORD_TOKEN` | le token du bot |
+   | `CLIENT_ID` | l'identifiant de l'application |
+   | `OWNER_ID` | votre identifiant Discord (propriétaire, voir section 7) |
+   | `RAILWAY_RUN_UID` | `0` (l'image tourne en utilisateur non-root ; sans cela, Railway interdit l'écriture dans le volume) |
+
+   `DATA_DIR` vaut déjà `/data` dans l'image.
+3. Ajoutez un **volume** persistant au service (clic droit sur le service ou **+ New > Volume**) avec comme chemin de montage `/data`. **Sans volume, les personnages sont perdus à chaque redéploiement.**
+4. Vérifiez dans les **Deployments > Logs** les lignes « Bot connecté » et « Commandes synchronisées ».
+5. Sur Discord, utilisez `/set-mj` (compte propriétaire) pour nommer les autres MJ.
+
+Points d'attention :
+
+- **Une seule instance** : n'exécutez pas le bot en même temps sur votre PC (supprimez le démarrage automatique avec `scripts\uninstall-autostart.cmd` et arrêtez le bot local), et gardez 1 seul réplica sur Railway.
+- Il n'y a pas de console sur Railway : utilisez `/set-mj`, `/remove-mj` et `/liste-mj`.
+- Les mises à jour se font par `git push` : Railway redéploie automatiquement.
+- Pour reprendre des données existantes (`mj.json`, `personnages.json`), il faut les copier dans le volume avec la CLI Railway (`railway ssh`, voir la documentation des volumes). Pour quelques personnages, il est plus simple de les recréer avec `/set-perso`.
 
 ## Architecture
 

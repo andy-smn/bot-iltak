@@ -32,6 +32,13 @@ class PermissionService {
     }
   }
 
+  /** Seul le propriétaire du bot (OWNER_ID) peut gérer les MJ. */
+  assertOwner(userId) {
+    if (!this.mjService.isOwner(userId)) {
+      throw new IltakError(ErrorCodes.NOT_OWNER, 'Cette commande est réservée au propriétaire du bot.');
+    }
+  }
+
   /**
    * Détermine le personnage utilisé pour un jet :
    * - avec `persoName` (réservé aux MJ actuels) : n'importe quel PJ du serveur, ou un PNJ
