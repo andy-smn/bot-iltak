@@ -176,7 +176,19 @@ Le bot expose 9 commandes slash fixes (`/set-perso`, `/corps`, `/coeur`, `/menin
 - Il n'y a pas encore de commande de renommage ou de suppression de PNJ, ni de suppression de compétence.
 - Les bonus sont limités à ±1000 (jets lisibles et sûrs).
 
-## 15. Hébergement avec Docker (VPS, Railway, Fly.io…)
+## 15. Démarrage automatique sous Windows
+
+Pour que le bot se lance tout seul à l'ouverture de session Windows (sans hébergeur) :
+
+1. Double-cliquez sur `scripts\install-autostart.cmd`. Il place un lanceur dans le dossier Démarrage de votre session.
+2. À la prochaine ouverture de session, une fenêtre « Bot Iltak » s'ouvre, **réduite** dans la barre des tâches. Cliquez dessus pour voir les messages ou taper une commande console (`set-mj`, `stop`…).
+3. Si le bot s'arrête sur une erreur (réseau pas encore prêt, coupure…), il est **relancé automatiquement après 15 secondes**.
+
+Pour tout arrêter : tapez `stop` dans la fenêtre du bot, ou fermez-la. Pour supprimer le démarrage automatique : `scripts\uninstall-autostart.cmd`.
+
+Limites : le bot ne tourne que pendant que la session Windows est ouverte et que le PC est allumé (en veille, il se reconnecte à Discord au réveil). Le dossier du projet ne doit pas être déplacé après l'installation (sinon relancez `install-autostart.cmd`). Node.js doit être accessible dans le `PATH`.
+
+## 16. Hébergement avec Docker (VPS, Railway, Fly.io…)
 
 GitHub stocke le code mais n'exécute pas le bot en continu : il faut un hébergeur qui lance le conteneur 24h/24. Prérequis de l'hébergeur : **une seule instance** et un **volume persistant** monté sur `/data` (là où sont écrits `mj.json` et `personnages.json`).
 
