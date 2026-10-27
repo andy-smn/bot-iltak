@@ -30,7 +30,40 @@ const data = addPersoOption(
  * catégorie de compétences non vide. Le personnage est désigné par son identifiant dans le
  * `customId` ; les droits sont revérifiés à chaque clic.
  */
-function buildComponents(personnage) {
+function buildComponents(personnage, pages = {}) {
+  const PAGE_SIZE = 5;
+
+  const titres = {
+    bagarre: 'Bagarre',
+    savoir: 'Savoir',
+    pouvoir: 'Magie',
+  };
+
+  // Trie les compétences et borne les pages demandées.
+  const categories = CATEGORIES.map((categorie) => {
+    const skills = Object.entries(
+      personnage.competences[categorie],
+    ).sort(([, a], [, b]) => a.nom.localeCompare(b.nom, 'fr'));
+
+    const pageCount = Math.max(1, Math.ceil(skills.length / PAGE_SIZE));
+    const requestedPage = pages[categorie];
+
+    const page = Number.isSafeInteger(requestedPage)
+      ? Math.max(0, Math.min(requestedPage, pageCount - 1))
+      : 0;
+
+    return { categorie, skills, pageCount, page };
+  });
+
+  // Chaque flèche conserve aussi les pages des autres catégories.
+  function navigationId(categorie, targetPage) {
+    const state = categories.map((entry) =>
+      entry.categorie === categorie ? targetPage : entry.page,
+    );
+
+    return `${PREFIX}:page:${personnage.id}:${categorie}:${state.join(',')}`;
+  }
+
   const components = [
     new TextDisplayBuilder().setContent(
       `## ${escapeMarkdown(personnage.nom)}\n### Caractéristiques`,
@@ -48,19 +81,11 @@ function buildComponents(personnage) {
     ),
   ];
 
-  const titres = {
-    bagarre: 'Bagarre',
-    savoir: 'Savoir',
-    pouvoir: 'Magie',
-  };
-
-  for (const categorie of CATEGORIES) {
-    const skills = Object.entries(personnage.competences[categorie]).sort(
-      ([, a], [, b]) => a.nom.localeCompare(b.nom, 'fr'),
-    );
-
+  for (const { categorie, skills, pageCount, page } of categories) {
     components.push(
-      new TextDisplayBuilder().setContent(`### ${titres[categorie]}`),
+      new TextDisplayBuilder().setContent(
+        `### ${titres[categorie]} — ${page + 1}/${pageCount}`,
+      ),
     );
 
     if (skills.length === 0) {
@@ -70,35 +95,42 @@ function buildComponents(personnage) {
       continue;
     }
 
-    for (let i = 0; i < skills.length; i += 5) {
+    const start = page * PAGE_SIZE;
+
+    components.push(
+      new ActionRowBuilder().addComponents(
+        skills.slice(start, start + PAGE_SIZE).map(([id, skill]) =>
+          new ButtonBuilder()
+            .setCustomId(
+              `${PREFIX}:skill:${personnage.id}:${categorie}:${id}`,
+            )
+            .setLabel(
+              `${skill.nom} ${formatSigned(skill.bonus)}`.slice(0, 80),
+            )
+            .setStyle(ButtonStyle.Secondary),
+        ),
+      ),
+    );
+
+    if (pageCount > 1) {
       components.push(
         new ActionRowBuilder().addComponents(
-          skills.slice(i, i + 5).map(([id, skill]) =>
-            new ButtonBuilder()
-              .setCustomId(
-                `${PREFIX}:skill:${personnage.id}:${categorie}:${id}`,
-              )
-              .setLabel(
-                `${skill.nom} ${formatSigned(skill.bonus)}`.slice(0, 80),
-              )
-              .setStyle(ButtonStyle.Secondary),
-          ),
+          new ButtonBuilder()
+            .setCustomId(navigationId(categorie, page - 1))
+            .setLabel('Précédent')
+            .setEmoji('◀️')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(page === 0),
+
+          new ButtonBuilder()
+            .setCustomId(navigationId(categorie, page + 1))
+            .setLabel('Suivant')
+            .setEmoji('▶️')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(page === pageCount - 1),
         ),
       );
     }
-  }
-
-  // Discord compte aussi les boutons à l'intérieur des rangées.
-  const total = components.reduce(
-    (count, component) => count + 1 + (component.components?.length ?? 0),
-    0,
-  );
-
-  if (total > 40) {
-    throw new IltakError(
-      ErrorCodes.INVALID_INPUT,
-      'Cette fiche contient trop de boutons pour un seul message. Utilisez /fiche-perso ou les commandes de jets.',
-    );
   }
 
   return components;
@@ -158,32 +190,79 @@ async function execute(interaction, ctx) {
 
 /** Clic sur un bouton ou un menu de la fiche : lance 2d6 + bonus, résultat public dans le salon. */
 async function handleComponent(interaction, ctx) {
-  const [, action, personnageId, arg, competenceId] =
+  const [, action, personnageId, arg, extra] =
     interaction.customId.split(':');
+
+  // Revérifie les droits, y compris lors d'un changement de page.
   const personnage = ctx.permissionService.resolveCharacterById({
     guildId: interaction.guildId,
     userId: interaction.user.id,
     personnageId,
   });
 
+  if (action === 'page' && CATEGORIES.includes(arg)) {
+    const values = (extra ?? '').split(',').map(Number);
+
+    if (
+      values.length !== CATEGORIES.length ||
+      !values.every(Number.isSafeInteger)
+    ) {
+      throw new IltakError(
+        ErrorCodes.INVALID_INPUT,
+        'Cette navigation est invalide : relancez /fiche-interactive.',
+      );
+    }
+
+    const pages = Object.fromEntries(
+      CATEGORIES.map((categorie, index) => [
+        categorie,
+        values[index],
+      ]),
+    );
+
+    // Modifie la fiche existante, sans nouveau message.
+    return interaction.update({
+      components: buildComponents(personnage, pages),
+      allowedMentions: { parse: [] },
+    });
+  }
+
   if (action === 'carac') {
     const carac = CARACTERISTIQUES.find(({ key }) => key === arg);
-    if (!carac) throw new IltakError(ErrorCodes.INVALID_INPUT, 'Cette interaction n\'est plus valide.');
-    return publishRoll(interaction, ctx, personnage, { label: carac.label, base: personnage.caracteristiques[carac.key] });
+
+    if (!carac) {
+      throw new IltakError(
+        ErrorCodes.INVALID_INPUT,
+        "Cette caractéristique n'est plus valide.",
+      );
+    }
+
+    return publishRoll(interaction, ctx, personnage, {
+      label: carac.label,
+      base: personnage.caracteristiques[carac.key],
+    });
   }
 
   if (action === 'skill' && CATEGORIES.includes(arg)) {
-    const skill = personnage.competences[arg][competenceId];
+    const skill = personnage.competences[arg][extra];
+
     if (!skill) {
       throw new IltakError(
         ErrorCodes.SKILL_NOT_FOUND,
-        'Cette compétence n\'existe plus chez ce personnage : relancez /fiche-perso.',
+        "Cette compétence n'existe plus : relancez /fiche-interactive.",
       );
     }
-    return publishRoll(interaction, ctx, personnage, { label: skill.nom, base: skill.bonus });
+
+    return publishRoll(interaction, ctx, personnage, {
+      label: skill.nom,
+      base: skill.bonus,
+    });
   }
 
-  throw new IltakError(ErrorCodes.INVALID_INPUT, 'Cette interaction n\'est plus valide.');
+  throw new IltakError(
+    ErrorCodes.INVALID_INPUT,
+    "Cette interaction n'est plus valide.",
+  );
 }
 
 module.exports = { NAME, PREFIX, data, execute, buildComponents, handleComponent };
