@@ -178,7 +178,11 @@ async function handleModalSubmit(interaction, ctx) {
   }
 
   const result = await ctx.personnageService.setPerso(params);
-  await replyEphemeral(interaction, formatConfirmation(result, result.personnage.ownerId));
+  let message = formatConfirmation(result, result.personnage.ownerId);
+  if (result.removed.length > 0) {
+    message += `\nCompétences supprimées : ${result.removed.map((id) => `\`${id}\``).join(', ')}`;
+  }
+  await replyEphemeral(interaction, message);
 }
 
 module.exports = { NAME, PREFIX, data, execute, handleModalSubmit, skillsToLines, linesToParam };

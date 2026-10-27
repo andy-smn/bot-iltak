@@ -50,7 +50,6 @@ function formatConfirmation(result, joueurId) {
   if (result.renamed) lines.push('Le personnage a été renommé.');
   if (result.added.length > 0) lines.push(`Compétences ajoutées : ${result.added.map((id) => `\`${id}\``).join(', ')}`);
   if (result.updated.length > 0) lines.push(`Compétences modifiées : ${result.updated.map((id) => `\`${id}\``).join(', ')}`);
-  if (result.removed?.length > 0) lines.push(`Compétences supprimées : ${result.removed.map((id) => `\`${id}\``).join(', ')}`);
   return lines.join('\n');
 }
 

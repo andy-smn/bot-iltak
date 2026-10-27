@@ -18,6 +18,7 @@ function getCommands() {
   return [
     setPerso.data,
     formulaire.data,
+    ficheInteractive.data,
     ...caracteristiques.builders,
     ...competences.builders,
     ...consultation.builders,
@@ -82,6 +83,7 @@ function createInteractionHandler(ctx) {
     const name = interaction.commandName;
     if (name === setPerso.NAME) return setPerso.execute(interaction, ctx);
     if (name === formulaire.NAME) return formulaire.execute(interaction, ctx);
+    if (name === ficheInteractive.NAME) return ficheInteractive.execute(interaction, ctx);
     if (caracteristiques.names.includes(name)) return caracteristiques.execute(interaction, ctx);
     if (competences.names.includes(name)) return competences.execute(interaction, ctx);
     if (consultation.names.includes(name)) return consultation.execute(interaction, ctx);

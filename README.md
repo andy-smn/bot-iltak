@@ -55,7 +55,7 @@ Au démarrage, le bot :
 
 1. charge `data/mj.json` et `data/personnages.json` (ils sont créés s'ils n'existent pas) ;
 2. se connecte à Discord ;
-3. enregistre, pour chaque serveur, les 13 commandes slash du bot.
+3. enregistre, pour chaque serveur, les 14 commandes slash du bot.
 
 Il refuse de démarrer, sans rien modifier, si un fichier JSON existant est corrompu.
 
@@ -173,16 +173,16 @@ Les commandes de jet lancent **2d6 + bonus** et publient le résultat **publique
 
 ## 12. Interface dans Discord (formulaire et fiche interactive)
 
-Ces deux fonctions s'ajoutent aux commandes texte, qui restent disponibles.
+Ces deux fonctions sont des commandes **supplémentaires** : `/set-perso` et `/fiche-perso` fonctionnent exactement comme avant.
 
-### Fiche interactive : `/fiche-perso`
+### Fiche interactive : `/fiche-interactive`
 
-Sous la fiche (visible de vous seul) s'affichent :
+Commande **à part** : `/fiche-perso` reste inchangée (texte seul). `/fiche-interactive` affiche la même fiche (mêmes options `perso`, mêmes droits d'accès, réponse visible de vous seul) avec en plus :
 
 - une rangée de **boutons** : Corps, Cœur et Méninges, avec leur bonus ;
 - un **menu déroulant par catégorie** non vide (Bagarre, Savoir, Pouvoir) pour choisir une compétence.
 
-Un clic **lance 2d6 + bonus** et publie le résultat **publiquement** dans le salon, comme `/corps` ou `/bagarre`. Les droits sont revérifiés à chaque clic : un joueur ne peut utiliser que son PJ, un MJ n'importe quel PJ ou ses propres PNJ, et un MJ révoqué perd l'accès même avec une ancienne fiche affichée. Un menu affiche au maximum 25 compétences (limite Discord) : au-delà, utilisez `/bagarre`, `/savoir` ou `/pouvoir`. Si une fiche est périmée (compétence supprimée entre-temps), le bot l'indique et demande de relancer `/fiche-perso`.
+Un clic **lance 2d6 + bonus** et publie le résultat **publiquement** dans le salon, comme `/corps` ou `/bagarre`. Les droits sont revérifiés à chaque clic : un joueur ne peut utiliser que son PJ, un MJ n'importe quel PJ ou ses propres PNJ, et un MJ révoqué perd l'accès même avec une ancienne fiche affichée. Un menu affiche au maximum 25 compétences (limite Discord) : au-delà, utilisez `/bagarre`, `/savoir` ou `/pouvoir`. Si une fiche est périmée (compétence supprimée entre-temps), le bot l'indique et demande de relancer `/fiche-interactive`.
 
 ### Formulaire de création et de modification : `/formulaire-perso` (MJ)
 
@@ -215,7 +215,7 @@ Garanties : validation avant chaque sauvegarde, écriture atomique (fichier `.tm
 
 ## 13. Synchronisation des commandes Discord
 
-Le bot expose 13 commandes slash fixes (`/set-perso`, `/formulaire-perso`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`, `/set-mj`, `/remove-mj`, `/liste-mj`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
+Le bot expose 14 commandes slash fixes (`/set-perso`, `/formulaire-perso`, `/fiche-interactive`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`, `/set-mj`, `/remove-mj`, `/liste-mj`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
 
 ## 14. Limites techniques connues
 

@@ -257,14 +257,14 @@ test('envoi du formulaire : droits revérifiés et erreurs sans aucune modificat
   assert.match(unknown.calls.reply[0].content, /plus valide/);
 });
 
-test('/fiche-perso : boutons de caractéristiques et un menu par catégorie non vide', async () => {
+test('/fiche-interactive : boutons de caractéristiques et un menu par catégorie non vide', async () => {
   const { handler, create } = await setup();
   const { personnage } = await create({
     joueurId: PLAYER_1, nom: 'Arthur Bennet', carac: '1,-2,3',
     bagarre: 'cac,"Techniques",2;distance,"Armes à distance",-1', pouvoir: 'sens,"Sens",3',
   });
 
-  const fiche = fake({ commandName: 'fiche-perso', userId: PLAYER_1 });
+  const fiche = fake({ commandName: 'fiche-interactive', userId: PLAYER_1 });
   await handler(fiche);
   assert.ok(ephemeral(fiche));
   const rows = fiche.calls.reply[0].components.map((row) => row.toJSON());
@@ -288,11 +288,47 @@ test('/fiche-perso : boutons de caractéristiques et un menu par catégorie non 
   assert.ok(rows.every((r) => r.components.every((c) => c.custom_id.length <= 100)));
 });
 
-test('/fiche-perso : plus de 25 compétences, le menu est limité et le signale', async () => {
+test('/fiche-interactive : droits d\'accès identiques à ceux de /fiche-perso', async () => {
+  const { handler, create } = await setup();
+  await create({ joueurId: PLAYER_1, nom: 'Arthur', carac: '1,1,1' });
+  await create({ nom: 'Louis', carac: '1,1,1' });
+  const run = async (commandName, userId, options = {}) => {
+    const interaction = fake({ commandName, userId, options });
+    await handler(interaction);
+    return interaction.calls.reply[0];
+  };
+  for (const [userId, options] of [
+    [PLAYER_1, {}], // son propre PJ
+    [MJ_2, { perso: 'Arthur' }], // n'importe quel MJ sur un PJ
+    [MJ_1, { perso: 'Louis' }], // MJ créateur sur son PNJ
+    [PLAYER_2, {}], // sans PJ
+    [PLAYER_1, { perso: 'Arthur' }], // option réservée aux MJ
+    [MJ_2, { perso: 'Louis' }], // PNJ d'un autre MJ
+    [MJ_1, { perso: 'Inconnu' }],
+  ]) {
+    const ancienne = await run('fiche-perso', userId, options);
+    const nouvelle = await run('fiche-interactive', userId, options);
+    assert.equal(nouvelle.content, ancienne.content);
+    assert.equal(nouvelle.flags, ancienne.flags);
+  }
+});
+
+test('/fiche-perso reste inchangée : texte seul, sans bouton ni menu', async () => {
+  const { handler, create } = await setup();
+  await create({ joueurId: PLAYER_1, nom: 'Arthur', carac: '1,1,1', bagarre: 'cac,2' });
+  const fiche = fake({ commandName: 'fiche-perso', userId: PLAYER_1 });
+  await handler(fiche);
+  assert.ok(ephemeral(fiche));
+  assert.match(fiche.calls.reply[0].content, /^\*\*Arthur\*\* — PJ/);
+  assert.equal(fiche.calls.reply[0].components, undefined);
+  assert.equal(fiche.calls.followUp.length, 0);
+});
+
+test('/fiche-interactive : plus de 25 compétences, le menu est limité et le signale', async () => {
   const { handler, create } = await setup();
   const skills = Array.from({ length: 30 }, (_, i) => `s${String(i).padStart(2, '0')},"Compétence ${i}",1`).join(';');
   await create({ joueurId: PLAYER_1, nom: 'Arthur', carac: '0,0,0', savoir: skills });
-  const fiche = fake({ commandName: 'fiche-perso', userId: PLAYER_1 });
+  const fiche = fake({ commandName: 'fiche-interactive', userId: PLAYER_1 });
   await handler(fiche);
   const menu = fiche.calls.reply[0].components[1].toJSON().components[0];
   assert.equal(menu.options.length, 25);
@@ -376,11 +412,11 @@ test('fiche interactive : fiche obsolète (compétence ou personnage disparu, id
   void personnageService;
 });
 
-test('/fiche-perso : les composants sont attachés au dernier message d\'une longue fiche', async () => {
+test('/fiche-interactive : les composants sont attachés au dernier message d\'une longue fiche', async () => {
   const { handler, create } = await setup();
   const skills = Array.from({ length: 80 }, (_, i) => `s${i},"Compétence numéro ${i} avec un nom assez long",1`).join(';');
   await create({ nom: 'Gros Perso', carac: '0,0,0', savoir: skills });
-  const fiche = fake({ commandName: 'fiche-perso', userId: MJ_1, options: { perso: 'Gros Perso' } });
+  const fiche = fake({ commandName: 'fiche-interactive', userId: MJ_1, options: { perso: 'Gros Perso' } });
   await handler(fiche);
   assert.equal(fiche.calls.reply[0].components, undefined);
   assert.ok(fiche.calls.followUp.length >= 1);

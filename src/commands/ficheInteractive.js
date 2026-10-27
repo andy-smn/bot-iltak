@@ -3,11 +3,21 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { CARACTERISTIQUES, CATEGORIES, CATEGORY_LABELS } = require('../constants');
 const { ErrorCodes, IltakError } = require('../utils/errors');
+const { formatFiche } = require('../utils/formatters');
 const { formatSigned } = require('../utils/validators');
-const { publishRoll } = require('./shared');
+const { addPersoOption, guildCommand, publishRoll, replyEphemeralChunks } = require('./shared');
 
+const NAME = 'fiche-interactive';
 const PREFIX = 'fiche';
 const MAX_SELECT_OPTIONS = 25;
+
+/**
+ * Commande de test /fiche-interactive : même fiche que /fiche-perso (qui reste inchangée),
+ * avec en plus des boutons et des menus pour lancer les dés.
+ */
+const data = addPersoOption(
+  guildCommand(NAME, 'Fiche interactive : boutons et menus pour lancer les dés (test)'),
+);
 
 /**
  * Composants de la fiche : une rangée de boutons (caractéristiques) et un menu déroulant par
@@ -51,6 +61,16 @@ function buildComponents(personnage) {
   return rows;
 }
 
+/** /fiche-interactive : mêmes règles d'accès que /fiche-perso et que les jets. */
+async function execute(interaction, ctx) {
+  const personnage = ctx.permissionService.resolveCharacter({
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    persoName: interaction.options.getString('perso'),
+  });
+  await replyEphemeralChunks(interaction, formatFiche(personnage), buildComponents(personnage));
+}
+
 /** Clic sur un bouton ou un menu de la fiche : lance 2d6 + bonus, résultat public dans le salon. */
 async function handleComponent(interaction, ctx) {
   const [, action, personnageId, arg] = interaction.customId.split(':');
@@ -80,4 +100,4 @@ async function handleComponent(interaction, ctx) {
   throw new IltakError(ErrorCodes.INVALID_INPUT, 'Cette interaction n\'est plus valide.');
 }
 
-module.exports = { PREFIX, buildComponents, handleComponent };
+module.exports = { NAME, PREFIX, data, execute, buildComponents, handleComponent };
