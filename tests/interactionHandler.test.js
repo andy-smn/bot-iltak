@@ -18,6 +18,9 @@ function fakeInteraction({ commandName, userId, guildId = GUILD, options = {}, u
     replied: false,
     isAutocomplete: () => false,
     isChatInputCommand: () => true,
+    isModalSubmit: () => false,
+    isButton: () => false,
+    isStringSelectMenu: () => false,
     inGuild: () => guildId !== null,
     options: {
       getString: (name) => options[name] ?? null,

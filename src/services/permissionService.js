@@ -1,6 +1,6 @@
 'use strict';
 
-const { TYPE_PNJ } = require('../constants');
+const { TYPE_PJ, TYPE_PNJ } = require('../constants');
 const { IltakError, ErrorCodes } = require('../utils/errors');
 
 /** Seul le MJ créateur d'un PNJ peut le contrôler (jets et modifications). */
@@ -37,6 +37,24 @@ class PermissionService {
     if (!this.mjService.isOwner(userId)) {
       throw new IltakError(ErrorCodes.NOT_OWNER, 'Cette commande est réservée au propriétaire du bot.');
     }
+  }
+
+  /**
+   * Personnage visé par un composant d'interface (bouton, menu, formulaire), désigné par son
+   * identifiant : le PJ de l'utilisateur, ou, pour un MJ, n'importe quel PJ ou l'un de ses PNJ.
+   * Les droits sont revérifiés à chaque clic : une fiche affichée ne donne aucun droit durable.
+   */
+  resolveCharacterById({ guildId, userId, personnageId }) {
+    const perso = this.personnageService.findById(guildId, personnageId);
+    if (!perso) {
+      throw new IltakError(ErrorCodes.CHARACTER_NOT_FOUND, 'Personnage introuvable : cette fiche est peut-être obsolète.');
+    }
+    if (perso.type === TYPE_PJ && perso.ownerId === userId) return perso;
+    if (!this.mjService.isMj(userId)) {
+      throw new IltakError(ErrorCodes.PERSO_NOT_ALLOWED, 'Vous ne pouvez pas utiliser ce personnage.');
+    }
+    assertCanControlPnj(perso, userId);
+    return perso;
   }
 
   /**

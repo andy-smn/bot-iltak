@@ -10,8 +10,8 @@ const { GUILD } = require('./helpers');
 test('définitions : commandes slash du bot', () => {
   const commands = getCommands();
   assert.deepEqual(commands.map((c) => c.name), [
-    'set-perso', 'corps', 'coeur', 'meninges', 'bagarre', 'savoir', 'pouvoir', 'liste-perso', 'fiche-perso',
-    'set-mj', 'remove-mj', 'liste-mj',
+    'set-perso', 'formulaire-perso', 'corps', 'coeur', 'meninges', 'bagarre', 'savoir', 'pouvoir',
+    'liste-perso', 'fiche-perso', 'set-mj', 'remove-mj', 'liste-mj',
   ]);
 
   const byName = Object.fromEntries(commands.map((c) => [c.name, c]));

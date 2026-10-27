@@ -1,6 +1,7 @@
 'use strict';
 
 const { formatFiche, formatListe } = require('../utils/formatters');
+const { buildComponents } = require('./ficheInteractive');
 const { addPersoOption, guildCommand, replyEphemeralChunks } = require('./shared');
 
 const LISTE = 'liste-perso';
@@ -29,7 +30,7 @@ async function executeFiche(interaction, ctx) {
     userId: interaction.user.id,
     persoName: interaction.options.getString('perso'),
   });
-  await replyEphemeralChunks(interaction, formatFiche(personnage));
+  await replyEphemeralChunks(interaction, formatFiche(personnage), buildComponents(personnage));
 }
 
 function execute(interaction, ctx) {

@@ -40,6 +40,19 @@ function addRollOptions(builder) {
   return addPersoOption(addBonusOption(builder));
 }
 
+/** Lance 2d6 + bonus pour un personnage et publie le résultat publiquement dans le salon. */
+async function publishRoll(interaction, ctx, personnage, { label, base, tempBonus = 0 }) {
+  const roll = ctx.diceService.roll({ base, tempBonus });
+  await interaction.reply({
+    content: formatRoll({
+      label: escapeMarkdown(label),
+      personnageNom: escapeMarkdown(personnage.nom),
+      roll,
+    }),
+    allowedMentions: NO_MENTIONS,
+  });
+}
+
 /**
  * Exécute un jet : résout le personnage (PJ de l'utilisateur, ou personnage désigné par un MJ),
  * détermine le bonus enregistré via `pickBase`, puis publie le résultat publiquement dans le salon.
@@ -56,33 +69,33 @@ async function executeRoll(interaction, ctx, pickBase) {
   });
   const { label, base } = pickBase(personnage);
   const tempBonus = interaction.options.getInteger('bonus') ?? 0;
-
-  const roll = ctx.diceService.roll({ base, tempBonus });
-  await interaction.reply({
-    content: formatRoll({
-      label: escapeMarkdown(label),
-      personnageNom: escapeMarkdown(personnage.nom),
-      roll,
-    }),
-    allowedMentions: NO_MENTIONS,
-  });
+  await publishRoll(interaction, ctx, personnage, { label, base, tempBonus });
 }
 
-/** Réponse éphémère (visible uniquement par l'utilisateur). */
-async function replyEphemeral(interaction, content) {
-  const payload = { content, allowedMentions: NO_MENTIONS };
+/** Réponse éphémère (visible uniquement par l'utilisateur). `extra` : composants, etc. */
+async function replyEphemeral(interaction, content, extra = {}) {
+  const payload = { content, allowedMentions: NO_MENTIONS, ...extra };
   if (interaction.deferred || interaction.replied) {
     return interaction.editReply(payload);
   }
   return interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });
 }
 
-/** Réponse éphémère découpée en plusieurs messages si elle dépasse la limite de Discord. */
-async function replyEphemeralChunks(interaction, text) {
-  const [first, ...rest] = splitMessage(text);
-  await replyEphemeral(interaction, first);
-  for (const chunk of rest) {
-    await interaction.followUp({ content: chunk, allowedMentions: NO_MENTIONS, flags: MessageFlags.Ephemeral });
+/**
+ * Réponse éphémère découpée en plusieurs messages si elle dépasse la limite de Discord.
+ * Les composants éventuels sont attachés au dernier message (le plus proche du bas de l'écran).
+ */
+async function replyEphemeralChunks(interaction, text, components = []) {
+  const chunks = splitMessage(text);
+  const extraFor = (index) => (index === chunks.length - 1 && components.length > 0 ? { components } : {});
+  await replyEphemeral(interaction, chunks[0], extraFor(0));
+  for (let i = 1; i < chunks.length; i += 1) {
+    await interaction.followUp({
+      content: chunks[i],
+      allowedMentions: NO_MENTIONS,
+      flags: MessageFlags.Ephemeral,
+      ...extraFor(i),
+    });
   }
 }
 
@@ -93,6 +106,7 @@ module.exports = {
   addPersoOption,
   addRollOptions,
   executeRoll,
+  publishRoll,
   replyEphemeral,
   replyEphemeralChunks,
 };

@@ -264,6 +264,106 @@ test('persistance après redémarrage et identification par identifiant Discord'
   }
 });
 
+test('ciblage par identifiant : renommage d\'un PNJ, droits du MJ créateur, serveur vérifié', async () => {
+  const { personnageService } = await makeServices(await makeTempDir());
+  const pnj = (await personnageService.setPerso(LOUIS)).personnage;
+  await personnageService.setPerso(ARTHUR);
+
+  const renamed = await personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, personnageId: pnj.id, nom: 'Louis Glass Jr' });
+  assert.equal(renamed.renamed, true);
+  assert.equal(renamed.personnage.id, pnj.id);
+  assert.equal(personnageService.findByName(GUILD, 'louis glass'), null);
+  assert.equal(personnageService.findPnjByName(GUILD, 'Louis Glass Jr').id, pnj.id);
+
+  // Un autre MJ ne peut pas toucher au PNJ, ni un autre serveur le retrouver, ni le nom d'un PJ être pris.
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_2, personnageId: pnj.id, nom: 'Vol' }),
+    ErrorCodes.FOREIGN_PNJ,
+  );
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD_2, actorId: MJ_1, personnageId: pnj.id, nom: 'Vol' }),
+    ErrorCodes.CHARACTER_NOT_FOUND,
+  );
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, personnageId: pnj.id, nom: 'arthur bennet' }),
+    ErrorCodes.NAME_TAKEN,
+  );
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, personnageId: 'inconnu', nom: 'X' }),
+    ErrorCodes.CHARACTER_NOT_FOUND,
+  );
+  // Un MJ quelconque peut modifier un PJ par identifiant (comme avec « joueur »).
+  const pj = personnageService.findPjByOwner(GUILD, PLAYER_1);
+  const edited = await personnageService.setPerso({ guildId: GUILD, actorId: MJ_2, personnageId: pj.id, carac: '5,5,5' });
+  assert.deepEqual(edited.personnage.caracteristiques, { corps: 5, coeur: 5, meninges: 5 });
+  assert.equal(personnageService.findById(GUILD_2, pj.id), null);
+});
+
+test('mode remplacer : les compétences absentes sont supprimées, les noms conservés, les catégories omises intactes', async () => {
+  const { personnageService } = await makeServices(await makeTempDir());
+  const { personnage } = await personnageService.setPerso(ARTHUR);
+
+  const result = await personnageService.setPerso({
+    guildId: GUILD,
+    actorId: MJ_1,
+    personnageId: personnage.id,
+    remplacer: true,
+    bagarre: 'cac,5;esquive,"Esquive",2', // distance supprimée, cac garde son nom
+    savoir: '', // catégorie vidée
+    pouvoir: 'inspecteur,"Déplacé",1', // déplacement d'une catégorie à une autre
+  });
+  const p = result.personnage;
+  assert.deepEqual(p.competences.bagarre, {
+    cac: { nom: 'Techniques d\'interpelation', bonus: 5 },
+    esquive: { nom: 'Esquive', bonus: 2 },
+  });
+  assert.deepEqual(p.competences.savoir, {});
+  assert.deepEqual(p.competences.pouvoir, { inspecteur: { nom: 'Déplacé', bonus: 1 } }); // « sens » supprimé
+  assert.deepEqual(result.removed.sort(), ['distance', 'sens']);
+  assert.deepEqual(result.added, ['esquive']);
+
+  // Sans « remplacer », rien n'est jamais supprimé et une catégorie non fournie est conservée.
+  const merged = await personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, personnageId: personnage.id, bagarre: 'nouveau,1' });
+  assert.deepEqual(Object.keys(merged.personnage.competences.bagarre).sort(), ['cac', 'esquive', 'nouveau']);
+  assert.deepEqual(merged.removed, []);
+
+  // Une erreur en mode remplacer n'enregistre rien (doublon entre deux catégories).
+  const snapshot = personnageService.store.snapshot();
+  await rejectsWith(
+    personnageService.setPerso({
+      guildId: GUILD, actorId: MJ_1, personnageId: personnage.id, remplacer: true, bagarre: 'x,1', savoir: 'x,2',
+    }),
+    ErrorCodes.DUPLICATE_SKILL,
+  );
+  assert.deepEqual(personnageService.store.snapshot(), snapshot);
+});
+
+test('mode creerUniquement : ne modifie jamais un personnage existant', async () => {
+  const { personnageService } = await makeServices(await makeTempDir());
+  await personnageService.setPerso(ARTHUR);
+  await personnageService.setPerso(LOUIS);
+  const snapshot = personnageService.store.snapshot();
+
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_2, nom: 'louis glass', carac: '0,0,0', creerUniquement: true }),
+    ErrorCodes.NAME_TAKEN,
+  );
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, nom: 'Arthur Bennet', carac: '0,0,0', creerUniquement: true }),
+    ErrorCodes.NAME_TAKEN,
+  );
+  await rejectsWith(
+    personnageService.setPerso({ guildId: GUILD, actorId: MJ_1, joueurId: PLAYER_1, nom: 'Autre', carac: '0,0,0', creerUniquement: true }),
+    ErrorCodes.DUPLICATE_PJ,
+  );
+  assert.deepEqual(personnageService.store.snapshot(), snapshot);
+
+  const created = await personnageService.setPerso({
+    guildId: GUILD, actorId: MJ_1, joueurId: PLAYER_2, nom: 'Nouveau', carac: '0,0,0', creerUniquement: true,
+  });
+  assert.equal(created.created, true);
+});
+
 test('plus de limite liée aux commandes : un personnage peut avoir de très nombreuses compétences', async () => {
   const { personnageService } = await makeServices(await makeTempDir());
   const skills = Array.from({ length: 150 }, (_, i) => `s${i},1`).join(';');

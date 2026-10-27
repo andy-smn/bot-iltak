@@ -55,7 +55,7 @@ Au démarrage, le bot :
 
 1. charge `data/mj.json` et `data/personnages.json` (ils sont créés s'ils n'existent pas) ;
 2. se connecte à Discord ;
-3. enregistre, pour chaque serveur, les 12 commandes slash du bot.
+3. enregistre, pour chaque serveur, les 13 commandes slash du bot.
 
 Il refuse de démarrer, sans rien modifier, si un fichier JSON existant est corrompu.
 
@@ -171,7 +171,38 @@ Les commandes de jet lancent **2d6 + bonus** et publient le résultat **publique
 - Le bonus et le nom d'affichage sont ceux du personnage concerné.
 - Une compétence que le personnage ne possède pas lance quand même les dés : **2d6 sans bonus** (le nom affiché est celui saisi). En revanche, un identifiant qui existe chez le personnage mais dans une autre catégorie que la commande utilisée renvoie une erreur explicite (« utilisez /savoir »).
 
-## 12. Fonctionnement des fichiers JSON
+## 12. Interface dans Discord (formulaire et fiche interactive)
+
+Ces deux fonctions s'ajoutent aux commandes texte, qui restent disponibles.
+
+### Fiche interactive : `/fiche-perso`
+
+Sous la fiche (visible de vous seul) s'affichent :
+
+- une rangée de **boutons** : Corps, Cœur et Méninges, avec leur bonus ;
+- un **menu déroulant par catégorie** non vide (Bagarre, Savoir, Pouvoir) pour choisir une compétence.
+
+Un clic **lance 2d6 + bonus** et publie le résultat **publiquement** dans le salon, comme `/corps` ou `/bagarre`. Les droits sont revérifiés à chaque clic : un joueur ne peut utiliser que son PJ, un MJ n'importe quel PJ ou ses propres PNJ, et un MJ révoqué perd l'accès même avec une ancienne fiche affichée. Un menu affiche au maximum 25 compétences (limite Discord) : au-delà, utilisez `/bagarre`, `/savoir` ou `/pouvoir`. Si une fiche est périmée (compétence supprimée entre-temps), le bot l'indique et demande de relancer `/fiche-perso`.
+
+### Formulaire de création et de modification : `/formulaire-perso` (MJ)
+
+Ouvre une fenêtre avec les champs **Nom**, **Caractéristiques** (`1,2,1`) et un champ par catégorie de compétences, **une compétence par ligne** : `id,"Nom d'affichage",bonus` (le nom est facultatif : `cac,2`).
+
+| Utilisation | Résultat |
+|-------------|----------|
+| `/formulaire-perso` | Formulaire vierge : nouveau **PNJ**. |
+| `/formulaire-perso joueur:@quelqu'un` | Modifie le PJ de ce joueur, ou ouvre un formulaire de création de **PJ** s'il n'en a pas. |
+| `/formulaire-perso perso:Nom` | Modifie ce personnage (n'importe quel PJ, ou un PNJ que vous avez créé), avec autocomplétion. |
+
+Différences avec `/set-perso` :
+
+- en modification, le formulaire est **prérempli** avec l'état actuel et **remplace** le contenu de chaque catégorie : une compétence effacée du formulaire est **supprimée** (ce que vous voyez est ce que vous obtenez, la confirmation liste les compétences supprimées) ;
+- il permet de **renommer un PNJ**, ce que `/set-perso` ne peut pas faire ;
+- en création, il **refuse d'écraser** un personnage existant (nom déjà pris, ou joueur ayant déjà un PJ).
+
+L'envoi est validé d'un bloc : à la moindre erreur (format, doublon d'identifiant entre catégories, nom pris, droits), rien n'est enregistré et le message d'erreur est affiché à vous seul. Les droits MJ sont revérifiés à l'envoi. Le contenu d'un champ est limité à 4 000 caractères par Discord : un personnage trop volumineux est refusé à l'ouverture, avec un renvoi vers `/set-perso`.
+
+## 12 bis. Fonctionnement des fichiers JSON
 
 Dossier `data/` (créé automatiquement, exclu de Git, jamais supprimé par le bot) :
 
@@ -184,7 +215,7 @@ Garanties : validation avant chaque sauvegarde, écriture atomique (fichier `.tm
 
 ## 13. Synchronisation des commandes Discord
 
-Le bot expose 12 commandes slash fixes (`/set-perso`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`, `/set-mj`, `/remove-mj`, `/liste-mj`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
+Le bot expose 13 commandes slash fixes (`/set-perso`, `/formulaire-perso`, `/corps`, `/coeur`, `/meninges`, `/bagarre`, `/savoir`, `/pouvoir`, `/liste-perso`, `/fiche-perso`, `/set-mj`, `/remove-mj`, `/liste-mj`), enregistrées **par serveur** (propagation immédiate). Elles sont synchronisées au démarrage et à l'arrivée du bot sur un serveur ; cette opération remplace la liste des commandes du bot sur le serveur (les commandes obsolètes disparaissent). Ajouter ou modifier une compétence ne touche pas aux commandes Discord, et la limite de 100 commandes par serveur n'est plus un sujet.
 
 ## 14. Limites techniques connues
 

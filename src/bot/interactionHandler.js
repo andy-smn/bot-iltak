@@ -4,6 +4,8 @@ const administration = require('../commands/administration');
 const caracteristiques = require('../commands/caracteristiques');
 const competences = require('../commands/competences');
 const consultation = require('../commands/consultation');
+const ficheInteractive = require('../commands/ficheInteractive');
+const formulaire = require('../commands/formulaire');
 const setPerso = require('../commands/set-perso');
 const { replyEphemeral } = require('../commands/shared');
 const { IltakError, ErrorCodes } = require('../utils/errors');
@@ -15,6 +17,7 @@ const MAX_AUTOCOMPLETE_CHOICES = 25;
 function getCommands() {
   return [
     setPerso.data,
+    formulaire.data,
     ...caracteristiques.builders,
     ...competences.builders,
     ...consultation.builders,
@@ -64,8 +67,21 @@ function createInteractionHandler(ctx) {
     if (!interaction.inGuild()) {
       throw new IltakError(ErrorCodes.INVALID_INPUT, 'Cette commande est utilisable uniquement sur un serveur.');
     }
+
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId.startsWith(`${formulaire.PREFIX}:`)) return formulaire.handleModalSubmit(interaction, ctx);
+      throw new IltakError(ErrorCodes.INVALID_INPUT, 'Ce formulaire n\'est plus valide.');
+    }
+    if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      if (interaction.customId.startsWith(`${ficheInteractive.PREFIX}:`)) {
+        return ficheInteractive.handleComponent(interaction, ctx);
+      }
+      throw new IltakError(ErrorCodes.INVALID_INPUT, 'Cette interaction n\'est plus valide.');
+    }
+
     const name = interaction.commandName;
     if (name === setPerso.NAME) return setPerso.execute(interaction, ctx);
+    if (name === formulaire.NAME) return formulaire.execute(interaction, ctx);
     if (caracteristiques.names.includes(name)) return caracteristiques.execute(interaction, ctx);
     if (competences.names.includes(name)) return competences.execute(interaction, ctx);
     if (consultation.names.includes(name)) return consultation.execute(interaction, ctx);
@@ -75,7 +91,12 @@ function createInteractionHandler(ctx) {
 
   return async function handleInteraction(interaction) {
     if (interaction.isAutocomplete()) return handleAutocomplete(interaction);
-    if (!interaction.isChatInputCommand()) return undefined;
+    const handled =
+      interaction.isChatInputCommand() ||
+      interaction.isModalSubmit() ||
+      interaction.isButton() ||
+      interaction.isStringSelectMenu();
+    if (!handled) return undefined;
 
     try {
       return await route(interaction);

@@ -56,6 +56,11 @@ class PersonnageService {
     return this.#guildPersonnages(guildId).filter((p) => p.type === TYPE_PJ || p.createdBy === mjId);
   }
 
+  findById(guildId, personnageId) {
+    const p = this.store.snapshot().personnages[personnageId];
+    return p && p.guildId === guildId ? p : null;
+  }
+
   listGuildIds() {
     return [...new Set(Object.values(this.store.snapshot().personnages).map((p) => p.guildId))];
   }
@@ -64,15 +69,32 @@ class PersonnageService {
    * Crée ou met à jour un personnage. Toute la validation est faite avant la moindre
    * écriture ; en cas d'erreur, rien n'est conservé.
    *
+   * Le personnage visé est identifié par `personnageId`, sinon par `joueurId` (PJ), sinon par `nom` (PNJ).
+   * - `remplacer` : pour chaque catégorie fournie, les compétences absentes de la liste sont supprimées
+   *   (sinon les compétences sont fusionnées avec l'existant, sans rien supprimer) ;
+   * - `creerUniquement` : refuse de modifier un personnage existant.
+   *
    * La vérification du statut MJ de `actorId` doit être faite par l'appelant (PermissionService).
    */
-  async setPerso({ guildId, actorId, joueurId = null, nom = null, carac = null, bagarre = null, savoir = null, pouvoir = null }) {
+  async setPerso({
+    guildId,
+    actorId,
+    personnageId = null,
+    joueurId = null,
+    nom = null,
+    carac = null,
+    bagarre = null,
+    savoir = null,
+    pouvoir = null,
+    remplacer = false,
+    creerUniquement = false,
+  }) {
     if (!isSnowflake(guildId) || !isSnowflake(actorId) || (joueurId !== null && !isSnowflake(joueurId))) {
       throw new IltakError(ErrorCodes.INVALID_INPUT, 'Identifiants Discord invalides.');
     }
 
     const cleanNom = nom !== null && nom !== undefined ? validateCharacterName(nom) : null;
-    if (!joueurId && cleanNom === null) {
+    if (!joueurId && !personnageId && cleanNom === null) {
       throw new IltakError(
         ErrorCodes.INVALID_INPUT,
         'Précisez « joueur » (pour un PJ) et/ou « nom » (obligatoire pour un PNJ).',
@@ -85,7 +107,8 @@ class PersonnageService {
     const idsInCommand = new Map();
     for (const categorie of CATEGORIES) {
       if (rawSkills[categorie] === null || rawSkills[categorie] === undefined) continue;
-      parsedSkills[categorie] = parseCompetences(rawSkills[categorie], categorie);
+      parsedSkills[categorie] =
+        remplacer && String(rawSkills[categorie]).trim() === '' ? [] : parseCompetences(rawSkills[categorie], categorie);
       for (const skill of parsedSkills[categorie]) {
         if (idsInCommand.has(skill.id)) {
           throw new IltakError(
@@ -104,15 +127,33 @@ class PersonnageService {
       const inGuild = () => Object.values(draft.personnages).filter((p) => p.guildId === guildId);
 
       let target;
-      if (joueurId) {
+      if (personnageId) {
+        target = draft.personnages[personnageId];
+        if (!target || target.guildId !== guildId) {
+          throw new IltakError(
+            ErrorCodes.CHARACTER_NOT_FOUND,
+            'Personnage introuvable (il a peut-être été supprimé ou renommé).',
+          );
+        }
+        assertCanControlPnj(target, actorId);
+      } else if (joueurId) {
         target = inGuild().find((p) => p.type === TYPE_PJ && p.ownerId === joueurId);
       } else {
         const key = nameKey(cleanNom);
         target = inGuild().find((p) => p.type === TYPE_PNJ && nameKey(p.nom) === key);
-        if (target) assertCanControlPnj(target, actorId);
+        if (target && !creerUniquement) assertCanControlPnj(target, actorId);
       }
 
-      const result = { created: false, renamed: false, caracChanged: false, added: [], updated: [] };
+      if (creerUniquement && target) {
+        throw joueurId
+          ? new IltakError(
+              ErrorCodes.DUPLICATE_PJ,
+              `Ce joueur possède déjà un personnage joueur (« ${target.nom} ») : modifiez-le au lieu d'en créer un autre.`,
+            )
+          : new IltakError(ErrorCodes.NAME_TAKEN, `Le nom « ${cleanNom} » est déjà utilisé par un personnage de ce serveur.`);
+      }
+
+      const result = { created: false, renamed: false, caracChanged: false, added: [], updated: [], removed: [] };
 
       // Les noms sont uniques par serveur (PJ et PNJ confondus) : un MJ désigne un personnage par son nom.
       const assertNameFree = (nom, exceptId) => {
@@ -149,7 +190,8 @@ class PersonnageService {
         result.created = true;
         result.caracChanged = true;
       } else {
-        if (joueurId && cleanNom !== null && cleanNom !== target.nom) {
+        // Un PNJ désigné seulement par son nom ne peut pas être renommé (le nom est la clé de sélection).
+        if ((joueurId || personnageId) && cleanNom !== null && cleanNom !== target.nom) {
           assertNameFree(cleanNom, target.id);
           target.nom = cleanNom;
           result.renamed = true;
@@ -160,22 +202,34 @@ class PersonnageService {
         }
       }
 
+      const before = structuredClone(target.competences);
+      if (remplacer) {
+        for (const categorie of Object.keys(parsedSkills)) target.competences[categorie] = {};
+      }
+
       for (const categorie of CATEGORIES) {
         for (const skill of parsedSkills[categorie] ?? []) {
-          const existing = findSkill(target, skill.id);
-          if (existing && existing.categorie !== categorie) {
+          const clash = findSkill(target, skill.id);
+          if (clash && clash.categorie !== categorie) {
             throw new IltakError(
               ErrorCodes.DUPLICATE_SKILL,
               `Doublon de compétence : « ${skill.id} » existe déjà chez ${target.nom} dans la catégorie ` +
-                `« ${CATEGORY_LABELS[existing.categorie]} ». Un identifiant ne peut pas être utilisé dans deux catégories.`,
+                `« ${CATEGORY_LABELS[clash.categorie]} ». Un identifiant ne peut pas être utilisé dans deux catégories.`,
             );
           }
+          const previous = findSkill({ competences: before }, skill.id);
           target.competences[categorie][skill.id] = {
-            nom: skill.nom ?? existing?.nom ?? skill.id,
+            nom: skill.nom ?? previous?.nom ?? skill.id,
             bonus: skill.bonus,
           };
-          (existing ? result.updated : result.added).push(skill.id);
+          (previous ? result.updated : result.added).push(skill.id);
         }
+      }
+
+      if (remplacer) {
+        result.removed = CATEGORIES.flatMap((categorie) => Object.keys(before[categorie])).filter(
+          (id) => !findSkill(target, id),
+        );
       }
 
       target.updatedAt = timestamp.toISOString();
