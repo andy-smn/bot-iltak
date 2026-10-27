@@ -38,7 +38,7 @@ function formatRollDetail(roll) {
 }
 
 function formatRoll({ label, personnageNom, roll }) {
-  return `**Jet de ${label} de ${personnageNom}**\n${formatRollDetail(roll)}`;
+  return `**${personnageNom}** a fait jet de **${label}**\n${formatRollDetail(roll)}`;
 }
 
 module.exports = { DiceService, formatRoll, formatRollDetail };
